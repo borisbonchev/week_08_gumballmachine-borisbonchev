@@ -1,0 +1,23 @@
+#Start State,trigger,End State,empty,winner,dispense,refills,expected text
+HAS_COIN,draw,NO_COIN,FALSE,FALSE,1,0,Gumball
+HAS_COIN,draw,SOLD_OUT,TRUE,TRUE,1,0,Gumball
+HAS_COIN,draw,WINNER,FALSE,TRUE,1,0,Gumball
+HAS_COIN,ejectCoin,NO_COIN,FALSE,FALSE,0,0,Quarter returned
+HAS_COIN,insertCoin,,FALSE,FALSE,0,0,You should draw to get your ball
+HAS_COIN,refill,,TRUE,FALSE,0,1,refilled
+NO_COIN,draw,,TRUE,FALSE,0,0,You must put in a coin before you can continue
+NO_COIN,ejectCoin,,FALSE,FALSE,0,0,You must put in a coin before you can continue
+NO_COIN,insertCoin,HAS_COIN,FALSE,FALSE,0,0,You inserted a coin
+NO_COIN,refill,,TRUE,FALSE,0,1,refilled
+SOLD_OUT,draw,,FALSE,FALSE,0,0,Machine is empty
+SOLD_OUT,insertCoin,,FALSE,FALSE,0,0,Machine is empty
+SOLD_OUT,insertCoin,,FALSE,FALSE,0,0,Machine is empty
+SOLD_OUT,refill,NO_COIN,FALSE,FALSE,0,1,refilled
+WINNER,draw,NO_COIN,FALSE,FALSE,1,0,You got two gumballs for your coin
+WINNER,draw,SOLD_OUT,TRUE,TRUE,1,0,Gumball
+WINNER,insertCoin,,FALSE,FALSE,0,0,You should draw once more to get an extra ball
+WINNER,insertCoin,,FALSE,FALSE,0,0,You should draw once more to get an extra ball
+WINNER,refill,,FALSE,FALSE,0,1,refilled
+# STATE,trigger pairs, that, have, not been, used, yet, and should be ignored
+WINNER,ejectCoin,,FALSE,FALSE,0,0,You should draw once more to get an extra ball
+SOLD_OUT,ejectCoin,,FALSE,FALSE,0,0,Machine is empty

@@ -1,0 +1,235 @@
+ifdef::env-github[]
+:tip-caption: :bulb:
+:note-caption: :information_source:
+:important-caption: :heavy_exclamation_mark:
+:caution-caption: :fire:
+:warning-caption: :warning:
+:imagesdir: images/
+endif::[]
+
+
+:testsourcedir: ./assignment/src/test
+
+== Exercise OlifantysBalls
+
+In this exercise you will test driven develop the behavior of a gumball machine.
+You will be implementing a state machine using the https://en.wikipedia.org/wiki/State_pattern[GoF State Pattern ^].
+
+=== What to do?
+
+* Read the documentation below
+* Study the complete source code in the assignment and read the javaDoc in order to understand the working of our gumball machine.
+* Open the 'Action Items' window in NetBeans to get a list of all TODO's (15 tests need to be written, 4 implementations)
+* Step by step process all Action Items, effectively resulting in writing tests for the state machine, implement the statemachine to make tests green and afterwards write tests for the GumballMachine.
+
+=== Explanation of the state machine
+
+The machine has the following events:
+
+* [blue]`insertCoin()`,
+* [blue]`ejectCoin(...)`,
+* [blue]`refill(...)`,
+* and [blue]`draw(...)` +
+    which can be understood as events, modeled in the interface [blue]`GumballState` and should
+    therefore have an implementation in each state.
+
+and four states:
+
+** [blue]`SOLD_OUT`,
+** [blue]`NO_COIN`,
+** [blue]`HAS_COIN`
+** and [blue]`WINNER`.
+
+image::statemachine.svg[State machine]
+
+Study the state diagram, it is the (whole) specification of our gumball system.
+
+You should find that the system starts in the state
+
+* *SOLD_OUT*, and will go to *NO_COIN* after a refill
+  with some gumballs.
+* When you insert a coin, it goes to *HAS_COIN*, in which you can draw to get a ball.
+* If the machine becomes empty by a draw, it will go to *SOLD_OUT*,
+* If not and you are lucky because the winner guard is true, the state is *WINNER* in which you can draw another ball without extra payment.
+* If not winner or after the extra draw the system will go back to *NO_COIN*, waiting for the next coin insertion.
+* When after *WINNER* the machine becomes empty because draw takes the last ball, the system will go to the *SOLD_OUT* out state.
+
+image::gumball-context.svg[Context of the state machine]
+
+
+Because both the Java artefacts `Context` and `GumballState` in the initial design are interfaces, we've added the UML `public` visibility modifier to all methods,
+because that is how interfaces work in Java.
+
+The circled plusses near StateEnum is the UML way of saying that SOLD_OUT etc are inner classes of StateEnum, which they effectively are.
+
+The `GumballMachine` implements two interfaces with the exact purpose of
+
+* `GumballApi` being the public API for consumption by the client and the
+* `Context` interface as one of the collaborators in the state pattern.
+
+To keep the API simple, that interface has one public static method for the client to get an instance of the package private OlifantysBallMachine.
+This keeps our design nice and tidy with the least possible coupling and leakage of unneeded information to the client. See it as an example of a clean design.
+
+The behavior is easily modeled in a state diagram, but can also be expressed in a _state transition table_, which has exactly the same
+information with the added benefit that it can easily be understood by a program, in our case the tests of the state machine.
+Using such state transition table is an older technique than the state machine diagrams.
+It predates UML, but is still valuable, in particular because it will easily list all
+possibile states and thus will help to find more test cases, ensuring that the set of tests is complete.
+
+[TIP]
+====
+image::gumballmachine-thumb.png[role="thumb left", title="gumball machine",200]
+In a real machine or automaton, such as a vending machine, the state machine will control one or
+more devices. As an example, think of a coffee brewer, which must grind coffee, maybe dispense cups,
+boil water and brew the coffee by pressing the water through the ground coffee, thereby filling the cup. To work properly, these
+'devices', such as boiler, grinder, cup dispenser, and pump need to be switched on and off. This is best done on enter (turn on) and
+exit (turn off) of the state, and is the reason why the State interface provides these methods. They are not used in the gumball exercise because there
+is no device, only imaginary, but might be used in a future exercise or project. A properly programmed context must therefor call the
+`enter(...)` and `exit(...)` methods when changing state, and a context test should verify that.
+====
+
+=== Testing using parameterized tests and Mockito
+
+The table below shows already predefined testcases that are available in a csv file in the assignment (testtable.csv). 
+`empty` and `winner` are _guard expressions_, with the outcome specified for the moment of evaluation. Guard expressions
+have a state decide if it should react to the trigger (guard == true) or not. A guard comes from outside the state and is typically available on the context, as in this exercise.
+Where the guard is not relevant, it is set to false. Nicer would have been leave the guard's table cell empty when it is not relevant but that does not
+play very well with junit csv tests and would complicate the tests.
+
+For the column *End State*, empty means no state change.
+
+Have a look at *each row* of the table and try to understand its meaning. The first row for example can be read as: If the machine is in the HAS_COIN state, the draw event takes place and isEmpty() and isWinner() bothe return false, it should end up in the NO_COIN state and one ball should be dispensed. The text output should contain "OlifantysGumBall"
+
+[[StateTable]]
+[format="csv", options="header,small"]
+|===
+include::{testsourcedir}/resources/gumballmachine/testtable.csv[]
+|===
+
+We will start testing the state enum `StateEnum`.
+
+The table reiterates that the state `HAS_COIN` needs the most attention in testing. +
+Also note that this table is just the specification, just like the state diagram,
+and not the implementation.
+
+To get our `GumballState` tested without any real machine nearby, we must mock our `Context`. This can be done by hand, but would soon make us create a context implementation that sort of works, because:
+
+ * first of all, it is not tested itself, thus violates the TDD workflow
+ * it does not behave the way we need it in the test for the `GumballState` type
+ * and we do not need to have this context to behave in any way other
+ then to give predictable answers when called by the State, and we must
+ ensure that the State has the exact interactions we want. Not too few, and also not too many.
+
+This is where http://mockito.org[Mockito ^] comes in. We only use a few of its features, namely
+
+* the mocking facility,
+* recording and playback of method calls and return values,
+* verification of the correct calls on the mocked Context.
+
+Have a look at the use of Mockito in the documentation or look at the Perishable Sales assignment again.
+
+.preparing for tests: setup.
+[source,java]
+----
+    @Mock
+    final Context ctx; // <1>
+
+    StringOutput sout = new StringOutput(); // <2>
+    PrintStream out = sout.asPrintStream(); // <3>
+
+    /**
+     * Map the trigger name from the csv file to a lambda expression of type
+     * {@code BiConsumer<Context,State>}.
+     */
+    static Map<String, BiConsumer<Context, State>> triggerMap = Map.of( // <4>
+            "insertCoin", ( c, s ) -> s.insertCoin( c ),
+            "ejectCoin", ( c, s ) -> s.ejectCoin( c ),
+            "drawBall", ( c, s ) -> s.draw( c ),
+            "refill", ( c, s ) -> s.refill( c, 5 )
+    );
+
+    void setupMocks() { // <5>
+        when( ctx.getOutput() ).thenReturn( out );
+        // any colour will do.
+        when( ctx.dispense() ).thenReturn( new OlifantysGumball( "RED" ) );
+    }
+----
+
+<1> The context is mocked in the constructor
+<2> StringOuput and PrintStream are combined into a PrintStream that takes the role of system output. This is a trick to be able to test values that are normally printed on the console (System.out). 
+<3> Creates a `StringOutput` and
+   ensure that anything output by the context is returned in an easily
+  interpreted `String`.
+<4> translates strings to actual lambda expressions that do the interaction in the test.
+<5> In the setup the standard mocks are trained to return the appropriate things on specific method calls.
+
+This basic setup is done for every test anew and makes sure our SUT has a fresh
+collaborator every time, ignorant of what happened in earlier tests.
+
+=== Parameterized tests
+
+The tabular format of the state machine behavior above is taken as the input for the parameterized tests.
+
+First we get the initial state from the csv test  source, which is in the column name "Start State".
+Because we need a State enum value we need to look that up using the enum classes' `valueOf(...)` method.
+
+When a state method is invoked, it can or should have multiple interactions with the
+context. To test that, we use the mocked context. First we need to complete it's teaching, that
+is what to answer on the boolean methods  `isEmpty()` and `isWinner()`. We take the values from the two columns winner and empty
+
+GumballStateTest has in total 4 tests which assert all stated requirements in the table:
+
+*verifyStateTransition* does what the name says.
+*assertMessage* that verifies that the correct output is 'printed' +
+*verifyDispense* ensures that the exact number of balls is dispensed, 0 or 1. +
+*verifyRefillAddsBalls* that some balls are added to the machine when refill is called +
+
+=== Don't forget the context
+
+The context's implementation becomes surprisingly simple.
+It only needs to forward the  event or 'trigger' to the current state, which in turn will tell the context what to do.
+
+The context must provide a bit of functionality to make the actions directed by the states meaningful.
+
+* forward the trigger to the state, providing itself as the first parameter. For instance
+  `insertCoin()` in the API should result in an `insertCoin(Context) call in the state.
+* Remember what state the context is 'in'. We do that with the changeState method.
+* invoke the exit and enter method when we swicth between states.
+* invoke the enter method on the initial state.
+
+and a few more.
+The test bodies are given in the test class 'GumballMachineTest' with their purpose,
+so you should be able to fill in the blanks. Contradicting to the TDD approach, the implementation of the GumballMachine class is already given.
+
+
+*How about coverage* +
+Some of the tests in GumballMachineTest are there for the purpose of maintaining
+a high coverage. Since you are already familiar with test coverage, it simply is a matter of turning on the proper maven profile.
+
+[TIP]
+====
+The csv test data are in a separate resource folder. If you try to test just one file,
+make sure you do *test project first*, which makes maven copy over the csv file to a place where the unit test can find it.
+====
+
+[TIP]
+====
+Mockito is a very powerful tool and serves the developer best when you stick
+to the rule of not writing code that is not executed. This applies to stubbing and mocking as well.
+When you stub or mock something, that fact serves as a kind of documentation for the developer or
+maintainer of the code and by implication of the tests as well. So if you apply stubbing and get a warning,
+do not just simply turn of the warning, but also document the potential unneeded stubbing.
+
+There are situations where you must compromise between the strictness of Mockito and
+the convenience of other aspects of a test approach. One such case is applicable to the GumballStateTest,
+where we use one test table as external test data. This test data is used in all tests. Changing the test data
+to just including the exactly right stubbing or mocking would make the test data set bigger, and thereby
+less easy to comprehend.
+
+In the exercise below we applied the annotation +
+ [blue]`@MockitoSettings( strictness = Strictness.WARN )` +
+ on two methods, where a specific interaction does not take place with all test data.
+
+[big red]*TURN of Warnings only, once you have verified that the path you tread is safe given the conditions of the tests*
+====
+
